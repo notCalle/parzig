@@ -38,3 +38,4 @@
 
 pub usingnamespace @import("src/parser.zig");
 pub usingnamespace @import("src/result.zig");
+pub usingnamespace @import("src/string_parser.zig");
