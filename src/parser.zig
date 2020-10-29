@@ -20,22 +20,6 @@
 // FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 // DEALINGS IN THE SOFTWARE.
 
-//!
-//! Parser Combinator Library
-//!
-//! Parsers are constructed by calling `Parser()` with a struct containing a
-//! function `parse([]const u8) Result(T)`. The returned parser is augmented
-//! with parser combinators that allows construction of more complex parsers.
-//!
-//! The parser is run by passing some `input` to its `.parse()` function.
-//!
-//! `.Alt(Parser)`: Constructs a parser that first tries `Self` and if that
-//! fails, an alternative parser is run.
-//!
-//! ```
-//! const PartyOrGhost = Char('🥳').Alt(Char('👻'));
-//! ```
-
 const std = @import("std");
 const assert = std.debug.assert;
 const mem = std.mem;
@@ -43,59 +27,7 @@ const t = std.testing;
 const u = std.unicode;
 
 usingnamespace @import("meta.zig");
-pub const Input = []const u8;
-
-const Reason = struct {};
-
-/// Constructs a `Result(T)` type for a parser of `T`, wrapping either
-/// `.Some` successfull parse result, or a reason for `.None`.
-pub fn Result(comptime T: type) type {
-    return union(enum) {
-        const Self = @This();
-
-        /// The type of parse result values wrapped by this `Result(T)`
-        pub const Value = T;
-
-        Some: struct { value: Value, tail: Input },
-        None: ?Reason,
-
-        /// Returns `.Some` successful parse result
-        pub fn some(result: Value, remaining: Input) Self {
-            return .{
-                .Some = .{
-                    .value = result,
-                    .tail = remaining,
-                },
-            };
-        }
-
-        /// Returns `.None` without any explanation for a parse failure
-        pub fn none() Self {
-            return .{ .None = null };
-        }
-
-        /// Returns `.None` with a reason, explaining the parse failure
-        pub fn fail(why: ?Reason) Self {
-            return .{ .None = why };
-        }
-
-        /// Unwraps `.Some` parsed value, returning null if there was `.None`
-        pub fn value(self: Self) ?Value {
-            switch (self) {
-                .Some => |r| return r.value,
-                .None => return null,
-            }
-        }
-
-        /// Unwraps `.Some` tail of input, returning null if there was `.None`
-        pub fn tail(self: Self) ?Input {
-            switch (self) {
-                .Some => |r| return r.tail,
-                .None => return null,
-            }
-        }
-    };
-}
+usingnamespace @import("result.zig");
 
 /// Constructs a parser from a struct with a single `fn parse(Input)Result(T)`
 pub fn Parser(comptime P: type) type {
