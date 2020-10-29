@@ -64,6 +64,48 @@ pub fn Parser(comptime P: type) type {
             });
         }
 
+        /// Constructs a parser that runs two parsers, returning the left result
+        /// when both are successful. If either parser fails, the leftmost
+        /// failure is returned.
+        pub fn SeqL(comptime next: type) type {
+            assert(isParser(next));
+            return Parser(struct {
+                pub fn parse(input: Input) Result(T) {
+                    switch (Self.parse(input)) {
+                        .None => |r| return Result(T).fail(r),
+                        .Some => |left| //
+                        switch (next.parse(left.tail)) {
+                            .None => |r| return Result(T).fail(r),
+                            .Some => //
+                            return Result(T).some(left.value, left.tail),
+                        },
+                    }
+                }
+            });
+        }
+
+        /// Constructs a parser that runs two parsers, returning the right
+        /// result when both are successful. If either parser fails, the
+        /// leftmost failure is returned.
+        pub fn SeqR(comptime next: type) type {
+            assert(isParser(next));
+            const U = next.T;
+
+            return Parser(struct {
+                pub fn parse(input: Input) Result(U) {
+                    switch (Self.parse(input)) {
+                        .None => |r| return Result(U).fail(r),
+                        .Some => |left| //
+                        switch (next.parse(left.tail)) {
+                            .None => |r| return Result(U).fail(r),
+                            .Some => |right| //
+                            return Result(U).some(right.value, right.tail),
+                        },
+                    }
+                }
+            });
+        }
+
         /// Monadic `bind`/`flatMap` function. Constructs a parser that calls
         /// `map(T)Result(U)` to transform a parse `Result(T)` to a parse `Result(U)`.
         pub fn Bind(comptime U: type, comptime map: anytype) type {
@@ -166,6 +208,22 @@ test "alternatives" {
 
     t.expectEqualSlices(u8, ghost, P.parse(ghost_party).value().?);
     t.expectEqualSlices(u8, party, P.parse(party_ghost).value().?);
+}
+
+test "sequence left" {
+    const P = Char('🥳').SeqL(Char('👻'));
+    const res = P.parse(party_ghost).value().?;
+
+    t.expectEqualSlices(u8, party, res);
+    t.expect(.None == P.parse(ghost_party));
+}
+
+test "sequence right" {
+    const P = Char('🥳').SeqR(Char('👻'));
+    const res = P.parse(party_ghost).value().?;
+
+    t.expectEqualSlices(u8, ghost, res);
+    t.expect(.None == P.parse(ghost_party));
 }
 
 test "compile" {
