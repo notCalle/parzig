@@ -33,15 +33,78 @@ usingnamespace @import("result.zig");
 
 const Str = []const u8;
 
+/// Constructs a parser that returns `[]const u8` "String" slices
+/// Because the string type matches the input type, the combinators
+/// abuse the fact that adjacent slices can be merged.
 pub fn StringParser(comptime P: type) type {
     assert(isParser(P));
     assert(ParseResult(P).T == Str);
 
-    return Parser(struct {
-        const T = []const u8;
+    return struct {
+        const Self = @This();
 
-        usingnamespace (P);
-    });
+        pub usingnamespace (Parser(P));
+
+        pub const Many = Repeat(0, null);
+        pub const Many1 = Repeat(1, null);
+        pub const Opt = Repeat(0, 1);
+
+        pub fn Repeat(min: usize, max: ?usize) type {
+            return StringParser(struct {
+                pub fn parse(input: Input) Result(Str) {
+                    var tail = input;
+                    var len: usize = 0;
+                    var n: usize = 0;
+                    var res: Result(Str) = undefined;
+
+                    while (max == null or n <= max.?) : (n += 1) {
+                        switch (Self.parse(tail)) {
+                            .None => |r| {
+                                res = Result(Str).fail(r);
+                                break;
+                            },
+                            .Some => |r| {
+                                len += r.value.len;
+                                tail = r.tail;
+                            },
+                        }
+                    }
+                    if (n >= min) {
+                        res = Result(Str).some(input[0..len], tail);
+                    }
+                    return res;
+                }
+            });
+        }
+
+        pub fn Seq(comptime next: type) type {
+            assert(isParser(next));
+            assert(Self.T == next.T);
+
+            return StringParser(struct {
+                pub fn parse(input: Input) Result(Str) {
+                    var len: usize = 0;
+                    var tail = input;
+
+                    switch (Self.parse(tail)) {
+                        .None => |r| return Result(Str).fail(r),
+                        .Some => |r| {
+                            len += r.value.len;
+                            tail = r.tail;
+                        },
+                    }
+                    switch (next.parse(tail)) {
+                        .None => |r| return Result(Str).fail(r),
+                        .Some => |r| {
+                            len += r.value.len;
+                            tail = r.tail;
+                        },
+                    }
+                    return Result(Str).some(input[0..len], tail);
+                }
+            });
+        }
+    };
 }
 
 pub fn String(comptime str: Str) type {
@@ -113,4 +176,43 @@ test "parse range of non-matching code points" {
         const s: [1]u8 = .{c};
         t.expect(.None == P.parse(s[0..]));
     }
+}
+
+// MARK: StringParser Combinator Tests
+
+test "parse a string of many" {
+    const P = Char('👻').Many;
+    const ghost_ghost = ghost ** 2;
+
+    t.expectEqualSlices(u8, ghost_ghost, P.parse(ghost_ghost).value().?);
+    t.expectEqualSlices(u8, ghost, P.parse(ghost_party).value().?);
+    t.expectEqualSlices(u8, "", P.parse(party_ghost).value().?);
+}
+
+test "parse a string of at least one" {
+    const P = Char('👻').Many1;
+    const ghost_ghost = ghost ** 2;
+
+    t.expectEqualSlices(u8, ghost_ghost, P.parse(ghost_ghost).value().?);
+    t.expectEqualSlices(u8, ghost, P.parse(ghost_party).value().?);
+    t.expect(.None == P.parse(party_ghost));
+}
+
+test "parse a sequence of strings" {
+    const P = Char('👻').Seq(Char('🥳'));
+
+    t.expectEqualSlices(u8, ghost_party, P.parse(ghost_party).value().?);
+    t.expect(.None == P.parse(party_ghost));
+}
+
+test "parse intergers" {
+    const Number = Char('-').Opt.Seq(CharRange('0', '9').Many1);
+    const Int = Number.Map(i32, testStrToInt);
+
+    t.expectEqual(@as(i32, -42), Int.parse("-42").value().?);
+    t.expectEqual(@as(i32, 17), Int.parse("17").value().?);
+    t.expect(.None == Int.parse("x"));
+}
+fn testStrToInt(str: []const u8) i32 {
+    return std.fmt.parseInt(i32, str, 10) catch unreachable;
 }
