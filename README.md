@@ -26,6 +26,32 @@ A parser combinator library for [Zig].
 
 ## Examples
 
+- Party Ghosts vs Ghost Parties
+
+  ```zig
+  usingnamespace @import("parzig");
+
+  const Ghost = Char('👻');
+  const Party = Char('🥳');
+
+  const ghost = "👻";
+  const party = "🥳";
+
+  test "ghost party" {
+      const GhostParty = Ghost.Seq(Party));
+      const ghost_party = ghost ++ party;
+      const party_ghost = party ++ ghost;
+
+      std.testing.expectEqualSlices(
+          u8,
+          ghost_party,
+          GhostParty.parse(ghost_party).value().?,
+      );
+
+      std.testing.expect(.None == GhostParty.parse(party_ghost));
+  }
+  ```
+
 - Numeric expression evaluator
 
   ```zig
