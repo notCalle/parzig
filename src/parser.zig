@@ -35,11 +35,14 @@
 //! ```
 //! const PartyOrGhost = Char('🥳').Alt(Char('👻'));
 //! ```
+
 const std = @import("std");
+const assert = std.debug.assert;
 const mem = std.mem;
 const t = std.testing;
 const u = std.unicode;
 
+usingnamespace @import("meta.zig");
 pub const Input = []const u8;
 
 const Reason = struct {};
@@ -96,17 +99,17 @@ pub fn Result(comptime T: type) type {
 
 /// Constructs a parser from a struct with a single `fn parse(Input)Result(T)`
 pub fn Parser(comptime P: type) type {
-    const decl = std.meta.declarationInfo(P, "parse");
-    const ResultT = decl.data.Fn.return_type;
+    assert(isParser(P));
 
     return struct {
+        // Keep in sync with `meta.isParser`
         const Self = @This();
-        pub const Value = ResultT.Value;
-        pub const parse = P.parse;
+        pub const T = ParseResult(P).T;
+        pub usingnamespace (P);
 
         pub fn Alt(comptime alt: type) type {
             return Parser(struct {
-                pub fn parse(input: Input) ResultT {
+                pub fn parse(input: Input) Result(T) {
                     const r = Self.parse(input);
                     if (.Some == r) return r;
                     return alt.parse(input);
@@ -116,13 +119,14 @@ pub fn Parser(comptime P: type) type {
 
         /// Functor `map` function. Constructs a parser that calls `map(T)U` to
         /// transform a parse `Result(T)` to a parse `Result(U)`.
-        pub fn Map(comptime map: anytype) type {
-            const ResultU = @typeInfo(@TypeOf(map)).Fn.return_type;
+        pub fn Map(comptime U: type, comptime map: anytype) type {
+            assert(U == ReturnType(map));
+
             return Parser(struct {
-                pub fn parse(input: Input) ResultU {
+                pub fn parse(input: Input) Result(U) {
                     switch (Self.parse(input)) {
-                        .Some => |r| return ResultU.some(map(r.value), r.input),
-                        .None => |r| return ResultU.fail(r),
+                        .Some => |r| return Result(U).some(map(r.value), r.tail),
+                        .None => |r| return Result(U).fail(r),
                     }
                 }
             });
@@ -130,13 +134,14 @@ pub fn Parser(comptime P: type) type {
 
         /// Monadic `bind`/`flatMap` function. Constructs a parser that calls
         /// `map(T)Result(U)` to transform a parse `Result(T)` to a parse `Result(U)`.
-        pub fn Bind(comptime map: anytype) type {
-            const ResultU = @typeInfo(@TypeOf(map)).Fn.return_type;
+        pub fn Bind(comptime U: type, comptime map: anytype) type {
+            assert(isParseFn(map));
+
             return Parser(struct {
-                pub fn parse(input: Input) ResultU {
+                pub fn parse(input: Input) Result(U) {
                     switch (Self.parse(input)) {
                         .Some => |r| return map(r.value),
-                        .None => |r| return ResultU.fail(r),
+                        .None => |r| return Result(U).fail(r),
                     }
                 }
             });
@@ -257,6 +262,8 @@ test "parse range of non-matching code points" {
 }
 
 pub fn Not(comptime parser: type) type {
+    assert(isParser(parser));
+
     return Parser(struct {
         pub fn parse(input: Input) Result(void) {
             switch (parser.parse(input)) {
@@ -272,8 +279,9 @@ test "non matching look-ahead" {
     t.expect(.Some == Not(Char('🥳')).parse(ghost_party));
 }
 
-pub fn Opt(comptime parser: anytype) type {
-    const T = parser.Value;
+pub fn Optional(comptime parser: anytype) type {
+    assert(isParser(parser));
+    const T = parser.T;
 
     return Parser(struct {
         pub fn parse(input: Input) Result(?T) {
