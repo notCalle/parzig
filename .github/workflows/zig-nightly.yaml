@@ -1,7 +1,11 @@
 %YAML 1.1
 ---
 name: zig-nightly
-on: push
+on:
+  push:
+  schedule:
+    - cron: "7 12 * * *"
+
 jobs:
   test:
     strategy:
