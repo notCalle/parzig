@@ -1,3 +1,5 @@
+[![zig-nightly](https://github.com/notCalle/parzig/workflows/zig-nightly/badge.svg)](https://github.com/notCalle/parzig/actions?query=workflow%3Azig-nightly)
+
 # ParZig
 
 A parser combinator library for [Zig].
