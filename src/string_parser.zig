@@ -21,7 +21,6 @@
 // DEALINGS IN THE SOFTWARE.
 
 const std = @import("std");
-const assert = std.debug.assert;
 const mem = std.mem;
 const t = std.testing;
 const u = std.unicode;
@@ -37,9 +36,6 @@ const Str = []const u8;
 /// Because the string type matches the input type, the combinators
 /// abuse the fact that adjacent slices can be merged.
 pub fn StringParser(comptime P: type) type {
-    assert(isParser(P));
-    assert(ParseResult(P).T == Str);
-
     return struct {
         const Self = @This();
 
@@ -78,9 +74,6 @@ pub fn StringParser(comptime P: type) type {
         }
 
         pub fn Seq(comptime next: type) type {
-            assert(isParser(next));
-            assert(Self.T == next.T);
-
             return StringParser(struct {
                 pub fn parse(input: Input) Result(Str) {
                     var len: usize = 0;

@@ -21,7 +21,6 @@
 // DEALINGS IN THE SOFTWARE.
 
 const std = @import("std");
-const assert = std.debug.assert;
 const t = std.testing;
 
 usingnamespace @import("ghost_party.zig");
@@ -31,8 +30,6 @@ usingnamespace @import("string_parser.zig");
 
 /// Constructs a parser from a struct with a single `fn parse(Input)Result(T)`
 pub fn Parser(comptime P: type) type {
-    assert(isParser(P));
-
     return struct {
         // Keep in sync with `meta.isParser`
         const Self = @This();
@@ -52,8 +49,6 @@ pub fn Parser(comptime P: type) type {
         /// Functor `map` function. Constructs a parser that calls `map(T)U` to
         /// transform a parse `Result(T)` to a parse `Result(U)`.
         pub fn Map(comptime U: type, comptime map: anytype) type {
-            assert(U == ReturnType(map));
-
             return Parser(struct {
                 pub fn parse(input: Input) Result(U) {
                     switch (Self.parse(input)) {
@@ -68,7 +63,6 @@ pub fn Parser(comptime P: type) type {
         /// when both are successful. If either parser fails, the leftmost
         /// failure is returned.
         pub fn SeqL(comptime next: type) type {
-            assert(isParser(next));
             return Parser(struct {
                 pub fn parse(input: Input) Result(T) {
                     switch (Self.parse(input)) {
@@ -88,7 +82,6 @@ pub fn Parser(comptime P: type) type {
         /// result when both are successful. If either parser fails, the
         /// leftmost failure is returned.
         pub fn SeqR(comptime next: type) type {
-            assert(isParser(next));
             const U = next.T;
 
             return Parser(struct {
@@ -109,7 +102,6 @@ pub fn Parser(comptime P: type) type {
         /// Monadic `bind`/`flatMap` function. Constructs a parser that calls
         /// `map(T)Result(U)` to transform a parse `Result(T)` to a parse `Result(U)`.
         pub fn Bind(comptime U: type, comptime map: anytype) type {
-            assert(isParseFn(map));
 
             return Parser(struct {
                 pub fn parse(input: Input) Result(U) {
@@ -165,8 +157,6 @@ test "parse end of input" {
 }
 
 pub fn Not(comptime parser: type) type {
-    assert(isParser(parser));
-
     return Parser(struct {
         pub fn parse(input: Input) Result(void) {
             switch (parser.parse(input)) {
@@ -183,7 +173,6 @@ test "non matching look-ahead" {
 }
 
 pub fn Optional(comptime parser: anytype) type {
-    assert(isParser(parser));
     const T = parser.T;
 
     return Parser(struct {

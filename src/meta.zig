@@ -34,30 +34,3 @@ pub fn ReturnType(comptime f: anytype) type {
 pub fn ParseResult(comptime P: type) type {
     return ReturnType(@field(P, "parse"));
 }
-
-pub fn isParser(comptime P: type) bool {
-    // Keep in sync with `parser.Parser`
-    const isParserContainer = multiTrait(.{
-        isContainer,
-        hasFn("parse"),
-    });
-    return isParserContainer(P) and isResult(ParseResult(P));
-}
-
-pub fn isParseFn(comptime f: anytype) bool {
-    return isResult(ReturnType(f));
-}
-
-pub fn isResult(comptime R: type) bool {
-    // Keep in sync with `result.Result`
-    return multiTrait(.{
-        is(.Union),
-        hasField("Some"),
-        hasField("None"),
-        hasFn("some"),
-        hasFn("some"),
-        hasFn("none"),
-        hasFn("value"),
-        hasFn("tail"),
-    })(R);
-}
