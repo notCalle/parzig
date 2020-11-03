@@ -21,7 +21,9 @@
 // DEALINGS IN THE SOFTWARE.
 
 const std = @import("std");
-const t = std.testing;
+const t = @import("testing.zig");
+
+const Input = @import("input.zig");
 
 usingnamespace @import("ghost_party.zig");
 usingnamespace @import("meta.zig");
@@ -121,7 +123,7 @@ pub fn Parser(comptime P: type) type {
                         switch (R.parse(left.tail)) {
                             .None => |r| return Result(T).fail(r),
                             .Some => //
-                            return Result(T).some(left.value, left.tail),
+                            return Result(T){ .Some = left },
                         },
                     }
                 }
@@ -152,7 +154,7 @@ pub fn Parser(comptime P: type) type {
                         switch (R.parse(left.tail)) {
                             .None => |r| return Result(U).fail(r),
                             .Some => |right| //
-                            return Result(U).some(right.value, right.tail),
+                            return Result(U){ .Some = right },
                         },
                     }
                 }
@@ -198,6 +200,23 @@ pub fn Parser(comptime P: type) type {
                 }
             }
         });
+
+        ///
+        /// Parser runner
+        ///
+        /// Arguments:
+        ///     `bytes: []const u8` - input buffer to parse
+        ///     `label: ?[]const u8` - optional label (e.g. file name)
+        ///
+        /// Returns:
+        ///     `Result(Self.T)`
+        ///
+        pub fn run(
+            bytes: []const u8,
+            label: ?[]const u8,
+        ) Result(T) {
+            return Self.parse(Input.init(bytes, label));
+        }
     };
 }
 
@@ -243,7 +262,7 @@ pub fn Fail(comptime T: type, comptime why: ?Reason) type {
 }
 
 test "parse failure" {
-    t.expect(.None == Fail(void, null).parse(""));
+    t.expectNone(Fail(void, null), "");
 }
 
 ///
@@ -252,10 +271,8 @@ test "parse failure" {
 pub const Nothing = Pure({});
 
 test "parse nothing" {
-    const res = Nothing.parse(ghost);
-
-    t.expectEqual({}, res.value().?);
-    t.expectEqualSlices(u8, ghost, res.tail().?);
+    t.expectSomeExactlyEqual({}, Nothing, ghost);
+    t.expectSomeTail(ghost, Nothing, ghost);
 }
 
 ///
@@ -263,15 +280,15 @@ test "parse nothing" {
 ///
 pub const End = Parser(struct {
     pub fn parse(input: Input) Result(void) {
-        if (input.len != 0) return Result(void).none();
+        if (input.len() != 0) return Result(void).none();
 
         return Result(void).some({}, input);
     }
 });
 
 test "parse end of input" {
-    t.expectEqual(Result(void).some({}, ""), End.parse(""));
-    t.expect(.None == End.parse("👻"));
+    t.expectSomeEqual({}, End, "");
+    t.expectNone(End, "👻");
 }
 
 ///
@@ -300,12 +317,9 @@ pub fn Not(comptime P: type) type {
 }
 
 test "non matching look-ahead" {
-    t.expect(.None == Not(Char('👻')).parse(ghost_party));
+    t.expectNone(Not(Char('👻')), ghost_party);
 
-    t.expectEqual(
-        Result(void).some({}, ghost_party),
-        Not(Char('🥳')).parse(ghost_party),
-    );
+    t.expectSomeEqual({}, Not(Char('🥳')), ghost_party);
 }
 
 ///
@@ -332,12 +346,9 @@ pub fn Try(comptime P: type) type {
 }
 
 test "matching look-ahead" {
-    t.expect(.None == Try(Char('🥳')).parse(ghost_party));
+    t.expectNone(Try(Char('🥳')), ghost_party);
 
-    t.expectEqual(
-        Result(void).some({}, ghost_party),
-        Try(Char('👻')).parse(ghost_party),
-    );
+    t.expectSomeEqual({}, Try(Char('👻')), ghost_party);
 }
 
 ///
@@ -366,10 +377,8 @@ pub fn Optional(comptime P: anytype) type {
 }
 
 test "optional" {
-    const P = Optional(Char('👻'));
-
-    t.expectEqualSlices(u8, ghost, P.parse(ghost_party).value().?.?);
-    t.expect(null == P.parse(party_ghost).value().?);
+    t.expectSomeEqualSliceOpt(u8, ghost, Optional(Char('👻')), ghost_party);
+    t.expectSomeEqual(null, Optional(Char('👻')), party_ghost);
 }
 
 //------------------------------------------------------------------------------
@@ -379,28 +388,20 @@ test "optional" {
 //------------------------------------------------------------------------------
 
 test "alternatives" {
-    const P = Char('🥳').Alt(Char('👻'));
-
-    t.expectEqualSlices(u8, ghost, P.parse(ghost_party).value().?);
-    t.expectEqualSlices(u8, party, P.parse(party_ghost).value().?);
+    t.expectSomeEqualSlice(u8, ghost, Char('🥳').Alt(Char('👻')), ghost_party);
+    t.expectSomeEqualSlice(u8, party, Char('🥳').Alt(Char('👻')), party_ghost);
 }
 
 test "sequence left" {
-    const P = Char('🥳').SeqL(Char('👻'));
-    const res = P.parse(party_ghost).value().?;
-
-    t.expectEqualSlices(u8, party, res);
-    t.expect(.None == P.parse(ghost_party));
+    t.expectSomeEqualSlice(u8, party, Char('🥳').SeqL(Char('👻')), party_ghost);
+    t.expectNone(Char('🥳').SeqL(Char('👻')), ghost_party);
 }
 
 test "sequence right" {
-    const P = Char('🥳').SeqR(Char('👻'));
-    const res = P.parse(party_ghost).value().?;
-
-    t.expectEqualSlices(u8, ghost, res);
-    t.expect(.None == P.parse(ghost_party));
+    t.expectSomeEqualSlice(u8, ghost, Char('🥳').SeqR(Char('👻')), party_ghost);
+    t.expectNone(Char('🥳').SeqR(Char('👻')), ghost_party);
 }
 
 test "compile" {
-    t.refAllDecls(@This());
+    std.testing.refAllDecls(@This());
 }
