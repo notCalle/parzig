@@ -21,16 +21,53 @@
 // DEALINGS IN THE SOFTWARE.
 
 const std = @import("std");
-usingnamespace std.meta.trait;
+const TypeInfo = std.builtin.TypeInfo;
+const t = std.testing;
 
-pub fn ReturnType(comptime f: anytype) type {
-    return switch (@typeInfo(@TypeOf(f))) {
-        .Fn => |F| F.return_type.?,
-        else => unreachable,
-    };
+fn Function(comptime Fn: type) TypeInfo.Fn {
+    switch (@typeInfo(Fn)) {
+        .Fn, .BoundFn => |F| return F,
+        else => @compileError("'" ++ @typeName(Fn) ++ "' is not a function type"),
+    }
+}
+
+pub fn ReturnType(comptime Fn: type) type {
+    if (Function(Fn).return_type) |rt| {
+        return rt;
+    } else {
+        @compileError("'" ++ @typeName(Fn) ++ "' has no return type");
+    }
+}
+
+test "Function returning void" {
+    try t.expectEqual(void, ReturnType(fn () void));
+}
+
+test "Function returning function" {
+    try t.expectEqual(fn (i32) i32, ReturnType(fn (i32, i32) (fn (i32) i32)));
+}
+
+///
+/// Creates an array slice with the argument types for a function type
+///
+/// Arguments:
+///     `Fn: comptime fn (...)`
+///
+/// Returns:
+///     `[]type` of argument types for the given function type
+///
+pub fn FunctionArgs(comptime Fn: type) []type {
+    const ArgsTuple = std.meta.ArgsTuple(Fn);
+    const args: ArgsTuple = undefined;
+    var Args: [args.len]type = undefined;
+
+    inline for (args) |arg, i| {
+        Args[i] = @TypeOf(args[i]);
+    }
+    return Args[0..];
 }
 
 /// Returns the `Result(T)` for a given `Parser`
 pub fn ParseResult(comptime P: type) type {
-    return ReturnType(@field(P, "parse"));
+    return ReturnType(@TypeOf(@field(P, "parse")));
 }
