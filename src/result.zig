@@ -20,7 +20,7 @@
 // FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 // DEALINGS IN THE SOFTWARE.
 
-pub const Input = []const u8;
+const Input = @import("input.zig");
 
 pub const Reason = struct {};
 

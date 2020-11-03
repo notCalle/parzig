@@ -22,8 +22,10 @@
 
 const std = @import("std");
 const mem = std.mem;
-const t = std.testing;
 const u = std.unicode;
+
+const t = @import("testing.zig");
+const Input = @import("input.zig");
 
 usingnamespace @import("ghost_party.zig");
 usingnamespace @import("meta.zig");
@@ -49,7 +51,6 @@ pub fn StringParser(comptime P: type) type {
             return StringParser(struct {
                 pub fn parse(input: Input) Result(Str) {
                     var tail = input;
-                    var len: usize = 0;
                     var n: usize = 0;
                     var res: Result(Str) = undefined;
 
@@ -60,13 +61,12 @@ pub fn StringParser(comptime P: type) type {
                                 break;
                             },
                             .Some => |r| {
-                                len += r.value.len;
                                 tail = r.tail;
                             },
                         }
                     }
                     if (n >= min) {
-                        res = Result(Str).some(input[0..len], tail);
+                        res = Result(Str).some(input.diff(tail), tail);
                     }
                     return res;
                 }
@@ -76,24 +76,21 @@ pub fn StringParser(comptime P: type) type {
         pub fn Seq(comptime next: type) type {
             return StringParser(struct {
                 pub fn parse(input: Input) Result(Str) {
-                    var len: usize = 0;
                     var tail = input;
 
                     switch (Self.parse(tail)) {
                         .None => |r| return Result(Str).fail(r),
                         .Some => |r| {
-                            len += r.value.len;
                             tail = r.tail;
                         },
                     }
                     switch (next.parse(tail)) {
                         .None => |r| return Result(Str).fail(r),
                         .Some => |r| {
-                            len += r.value.len;
                             tail = r.tail;
                         },
                     }
-                    return Result(Str).some(input[0..len], tail);
+                    return Result(Str).some(input.diff(tail), tail);
                 }
             });
         }
@@ -103,19 +100,18 @@ pub fn StringParser(comptime P: type) type {
 pub fn String(comptime str: Str) type {
     return StringParser(struct {
         pub fn parse(input: Input) Result(Str) {
-            if (!mem.startsWith(u8, input, str)) {
+            if (!mem.eql(u8, input.peek(str.len), str)) {
                 return Result([]const u8).none();
             }
 
-            return Result([]const u8).some(str, input[str.len..]);
+            return Result([]const u8).some(str, input.take(str.len));
         }
     });
 }
 
 test "parse string" {
-    const P = String("👻🥳");
-    t.expect(.Some == P.parse("👻🥳"));
-    t.expect(.None == P.parse("👻👻"));
+    t.expectSome(String("👻🥳"), "👻🥳");
+    t.expectNone(String("👻🥳"), "👻👻");
 }
 
 pub fn Char(comptime char: u21) type {
@@ -127,24 +123,22 @@ pub fn Char(comptime char: u21) type {
 }
 
 test "parse code point" {
-    const P = Char('👻');
-    t.expectEqualSlices(u8, "👻", P.parse("👻").value().?);
-    t.expect(.None == P.parse(""));
+    t.expectSomeEqualSlice(u8, "👻", Char('👻'), "👻");
+    t.expectNone(Char('👻'), "");
 }
 
 pub fn CharRange(comptime low: u21, high: u21) type {
-    const low_len = u.utf8CodepointSequenceLength(low) catch unreachable;
     const none = Result(Str).none;
 
     return StringParser(struct {
         pub fn parse(input: Input) Result(Str) {
-            if (input.len < 1) return none();
+            if (input.len() < 1) return none();
 
-            const len = u.utf8ByteSequenceLength(input[0]) catch return none();
-            const char = u.utf8Decode(input[0..len]) catch return none();
+            const len = u.utf8ByteSequenceLength(input.peek(1)[0]) catch return none();
+            const char = u.utf8Decode(input.peek(len)) catch return none();
 
             if (low <= char and char <= high) {
-                return Result(Str).some(input[0..len], input[len..]);
+                return Result(Str).some(input.peek(len), input.take(len));
             }
             return none();
         }
@@ -152,59 +146,53 @@ pub fn CharRange(comptime low: u21, high: u21) type {
 }
 
 test "parse range of matching code points" {
-    const P = CharRange('a', 'z');
     var c: u8 = 'a';
 
     while (c <= 'z') : (c += 1) {
         const s: [1]u8 = .{c};
-        t.expect(.Some == P.parse(s[0..]));
+        t.expectSomeEqualSlice(u8, s[0..], CharRange('a', 'z'), s[0..]);
     }
 }
 
 test "parse range of non-matching code points" {
-    const P = CharRange('A', 'Z');
     var c: u8 = 'a';
 
     while (c <= 'z') : (c += 1) {
         const s: [1]u8 = .{c};
-        t.expect(.None == P.parse(s[0..]));
+        t.expectNone(CharRange('A', 'Z'), s[0..]);
     }
 }
 
 // MARK: StringParser Combinator Tests
 
 test "parse a string of many" {
-    const P = Char('👻').Many;
     const ghost_ghost = ghost ** 2;
 
-    t.expectEqualSlices(u8, ghost_ghost, P.parse(ghost_ghost).value().?);
-    t.expectEqualSlices(u8, ghost, P.parse(ghost_party).value().?);
-    t.expectEqualSlices(u8, "", P.parse(party_ghost).value().?);
+    t.expectSomeEqualSlice(u8, ghost_ghost, Char('👻').Many, ghost_ghost);
+    t.expectSomeEqualSlice(u8, ghost, Char('👻').Many, ghost_party);
+    t.expectSomeEqualSlice(u8, "", Char('👻').Many, party_ghost);
 }
 
 test "parse a string of at least one" {
-    const P = Char('👻').Many1;
     const ghost_ghost = ghost ** 2;
 
-    t.expectEqualSlices(u8, ghost_ghost, P.parse(ghost_ghost).value().?);
-    t.expectEqualSlices(u8, ghost, P.parse(ghost_party).value().?);
-    t.expect(.None == P.parse(party_ghost));
+    t.expectSomeEqualSlice(u8, ghost_ghost, Char('👻').Many1, ghost_ghost);
+    t.expectSomeEqualSlice(u8, ghost, Char('👻').Many1, ghost_party);
+    t.expectNone(Char('👻').Many1, party_ghost);
 }
 
 test "parse a sequence of strings" {
-    const P = Char('👻').Seq(Char('🥳'));
-
-    t.expectEqualSlices(u8, ghost_party, P.parse(ghost_party).value().?);
-    t.expect(.None == P.parse(party_ghost));
+    t.expectSomeEqualSlice(u8, ghost_party, Char('👻').Seq(Char('🥳')), ghost_party);
+    t.expectNone(Char('👻').Seq(Char('🥳')), party_ghost);
 }
 
 test "parse intergers" {
     const Number = Char('-').Opt.Seq(CharRange('0', '9').Many1);
     const Int = Number.Map(i32, testStrToInt);
 
-    t.expectEqual(@as(i32, -42), Int.parse("-42").value().?);
-    t.expectEqual(@as(i32, 17), Int.parse("17").value().?);
-    t.expect(.None == Int.parse("x"));
+    t.expectSomeExactlyEqual(-42, Int, "-42");
+    t.expectSomeExactlyEqual(17, Int, "17");
+    t.expectNone(Int, "x");
 }
 fn testStrToInt(str: []const u8) i32 {
     return std.fmt.parseInt(i32, str, 10) catch unreachable;
