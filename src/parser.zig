@@ -447,6 +447,35 @@ test "optional" {
 //
 //------------------------------------------------------------------------------
 
+fn testIntOp(a: i32, o: []const u8, b: i32) i32 {
+    return switch (o[0]) {
+        '+' => a + b,
+        '-' => a - b,
+        '*' => a * b,
+        '/' => @divTrunc(a, b),
+        else => unreachable,
+    };
+}
+fn testIntAdd(a: i32, b: i32) i32 {
+    return a + b;
+}
+
+fn testStrToInt(str: []const u8) i32 {
+    return std.fmt.parseInt(i32, str, 10) catch unreachable;
+}
+const TestInt = CharRange('0', '9').Many1.Map(testStrToInt);
+const TestAdd = Char('+');
+const TestIntAdd = Lift(testIntAdd).Seq(TestInt).SeqL(TestAdd).Seq(TestInt);
+
+fn testId(a: i32) i32 {
+    return a;
+}
+test "applicative sequence" {
+    const r = Lift(testId).Seq(Pure(1)).run("", null);
+    //t.expectSomeEqual(@as(i32, 1), Lift(testId).Seq(Pure(1)), "");
+    //t.expectSomeEqual(3, TestIntAdd, "1+2");
+}
+
 test "alternatives" {
     t.expectSomeEqualSlice(u8, ghost, Char('🥳').Alt(Char('👻')), ghost_party);
     t.expectSomeEqualSlice(u8, party, Char('🥳').Alt(Char('👻')), party_ghost);
