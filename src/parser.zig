@@ -448,6 +448,40 @@ test "optional" {
 //
 //------------------------------------------------------------------------------
 
+fn testStrToInt(str: []const u8) i32 {
+    return std.fmt.parseInt(i32, str, 10) catch unreachable;
+}
+const TestInt = CharRange('0', '9').Many1.Map(testStrToInt);
+
+fn testId(a: i32) i32 {
+    return a;
+}
+
+test "functor map" {
+    try t.expectSomeEqual(1, TestInt, "1");
+    try t.expectSomeEqual(1, TestInt.Map(testId), "1");
+}
+
+fn testIntOp(a: i32, o: []const u8, b: i32) i32 {
+    return switch (o[0]) {
+        '+' => a + b,
+        '-' => a - b,
+        '*' => a * b,
+        '/' => @divTrunc(a, b),
+        else => unreachable,
+    };
+}
+const TestOp = Char('+').Alt(Char('-')).Alt(Char('*')).Alt(Char('/'));
+const TestIntOp = Lift(testIntOp).Seq(TestInt).Seq(TestOp).Seq(TestInt);
+
+test "applicative sequence" {
+    try t.expectSomeEqual(1, Lift(testId).Seq(TestInt), "1");
+    try t.expectSomeEqual(3, TestIntOp, "1+2");
+    try t.expectSomeEqual(-1, TestIntOp, "1-2");
+    try t.expectSomeEqual(2, TestIntOp, "1*2");
+    try t.expectSomeEqual(0, TestIntOp, "1/2");
+}
+
 test "alternatives" {
     try t.expectSomeEqualSlice(u8, ghost, Char('🥳').Alt(Char('👻')), ghost_party);
     try t.expectSomeEqualSlice(u8, party, Char('🥳').Alt(Char('👻')), party_ghost);
