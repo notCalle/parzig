@@ -39,9 +39,7 @@ const Str = []const u8;
 /// abuse the fact that adjacent slices can be merged.
 pub fn StringParser(comptime P: type) type {
     return struct {
-        const Self = @This();
-
-        pub usingnamespace (Parser(P));
+        pub usingnamespace Parser(P);
 
         pub const Many = Repeat(0, null);
         pub const Many1 = Repeat(1, null);
@@ -55,7 +53,7 @@ pub fn StringParser(comptime P: type) type {
                     var res: Result(Str) = undefined;
 
                     while (max == null or n <= max.?) : (n += 1) {
-                        switch (Self.parse(tail)) {
+                        switch (P.parse(tail)) {
                             .None => |r| {
                                 res = Result(Str).fail(r);
                                 break;
@@ -73,12 +71,12 @@ pub fn StringParser(comptime P: type) type {
             });
         }
 
-        pub fn Seq(comptime next: type) type {
+        pub fn Plus(comptime next: type) type {
             return StringParser(struct {
                 pub fn parse(input: Input) Result(Str) {
                     var tail = input;
 
-                    switch (Self.parse(tail)) {
+                    switch (P.parse(tail)) {
                         .None => |r| return Result(Str).fail(r),
                         .Some => |r| {
                             tail = r.tail;
@@ -182,13 +180,13 @@ test "parse a string of at least one" {
 }
 
 test "parse a sequence of strings" {
-    try t.expectSomeEqualSlice(u8, ghost_party, Char('👻').Seq(Char('🥳')), ghost_party);
-    try t.expectNone(Char('👻').Seq(Char('🥳')), party_ghost);
+    try t.expectSomeEqualSlice(u8, ghost_party, Char('👻').Plus(Char('🥳')), ghost_party);
+    try t.expectNone(Char('👻').Plus(Char('🥳')), party_ghost);
 }
 
 test "parse intergers" {
-    const Number = Char('-').Opt.Seq(CharRange('0', '9').Many1);
-    const Int = Number.Map(i32, testStrToInt);
+    const Number = Char('-').Opt.Plus(CharRange('0', '9').Many1);
+    const Int = Number.Map(testStrToInt);
 
     try t.expectSomeExactlyEqual(-42, Int, "-42");
     try t.expectSomeExactlyEqual(17, Int, "17");
