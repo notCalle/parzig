@@ -45,13 +45,10 @@ usingnamespace @import("string_parser.zig");
 ///
 pub fn Parser(comptime P: type) type {
     return struct {
-        // Keep in sync with `meta.isParser`
-        const Self = @This();
-
         /// Value type of parse results
         pub const T = ParseResult(P).T;
 
-        pub usingnamespace (P);
+        pub usingnamespace P;
 
         ///
         /// Functor `map` combinator
@@ -65,11 +62,13 @@ pub fn Parser(comptime P: type) type {
         /// Returns:
         ///     `Parser{ .T = U }`
         ///
-        pub fn Map(comptime U: type, comptime map: anytype) type {
+        pub fn Map(comptime f: anytype) type {
+            const U = ReturnType(@TypeOf(f));
+
             return Parser(struct {
                 pub fn parse(input: Input) Result(U) {
-                    switch (Self.parse(input)) {
-                        .Some => |r| return Result(U).some(map(r.value), r.tail),
+                    switch (P.parse(input)) {
+                        .Some => |r| return Result(U).some(f(r.value), r.tail),
                         .None => |r| return Result(U).fail(r),
                     }
                 }
@@ -94,7 +93,7 @@ pub fn Parser(comptime P: type) type {
         pub fn Alt(comptime R: type) type {
             return Parser(struct {
                 pub fn parse(input: Input) Result(T) {
-                    const r = Self.parse(input);
+                    const r = P.parse(input);
                     if (.Some == r) return r;
                     return R.parse(input);
                 }
@@ -117,7 +116,7 @@ pub fn Parser(comptime P: type) type {
         pub fn SeqL(comptime R: type) type {
             return Parser(struct {
                 pub fn parse(input: Input) Result(T) {
-                    switch (Self.parse(input)) {
+                    switch (P.parse(input)) {
                         .None => |r| return Result(T).fail(r),
                         .Some => |left| //
                         switch (R.parse(left.tail)) {
@@ -148,7 +147,7 @@ pub fn Parser(comptime P: type) type {
 
             return Parser(struct {
                 pub fn parse(input: Input) Result(U) {
-                    switch (Self.parse(input)) {
+                    switch (P.parse(input)) {
                         .None => |r| return Result(U).fail(r),
                         .Some => |left| //
                         switch (R.parse(left.tail)) {
@@ -174,8 +173,8 @@ pub fn Parser(comptime P: type) type {
         /// Returns:
         ///     `Parser{ .T = U }`
         ///
-        pub fn Bind(comptime U: type, comptime f: anytype) type {
-            return Self.Map(Result(U), f).Join;
+        pub fn Bind(comptime f: anytype) type {
+            return P.Map(f).Join;
         }
 
         ///
@@ -193,8 +192,10 @@ pub fn Parser(comptime P: type) type {
         ///     `Parser{ .T = U }`
         ///
         pub const Join = Parser(struct {
+            const U = ResultType(T);
+
             pub fn parse(input: Input) Result(U) {
-                switch (Self.parse(input)) {
+                switch (P.parse(input)) {
                     .None => |r| return Result(U).fail(r),
                     .Some => |r| return r,
                 }
@@ -215,7 +216,7 @@ pub fn Parser(comptime P: type) type {
             bytes: []const u8,
             label: ?[]const u8,
         ) Result(T) {
-            return Self.parse(Input.init(bytes, label));
+            return P.parse(Input.init(bytes, label));
         }
     };
 }
