@@ -1,5 +1,5 @@
 [![zig-nightly](https://github.com/notCalle/parzig/workflows/zig-nightly/badge.svg)](https://github.com/notCalle/parzig/actions?query=workflow%3Azig-nightly)
-[![zig-v0.7.0](https://github.com/notCalle/parzig/workflows/zig-v0.7.0/badge.svg)](https://github.com/notCalle/parzig/actions?query=workflow%3Azig-v0.7.0)
+[![zig-v0.7.1](https://github.com/notCalle/parzig/workflows/zig-v0.7.1/badge.svg)](https://github.com/notCalle/parzig/actions?query=workflow%3Azig-v0.7.1)
 
 # ParZig
 
