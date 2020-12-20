@@ -1,6 +1,6 @@
 %YAML 1.1
 ---
-name: zig-v0.7.0
+name: zig-release
 on:
   push:
   schedule:
@@ -16,7 +16,7 @@ jobs:
       - uses: actions/checkout@v2
       - uses: goto-bus-stop/setup-zig@v1
         with:
-          version: v0.7.0
+          version: v0.7.1
       - run: zig build test
 
   lint:
@@ -25,6 +25,6 @@ jobs:
       - uses: actions/checkout@v2
       - uses: goto-bus-stop/setup-zig@v1
         with:
-          version: v0.7.0
+          version: v0.7.1
       - run: zig fmt --check src/*.zig examples/*.zig *.zig
 ...
