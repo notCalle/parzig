@@ -30,14 +30,14 @@ pub fn expectNone(
     comptime P: type,
     bytes: []const u8,
 ) !void {
-    try t.expect(.None == P.run(bytes, null));
+    if (.Some == P.run(bytes, null)) return error.TestExpectedNone;
 }
 
 pub fn expectSome(
     comptime P: type,
     bytes: []const u8,
 ) !void {
-    try t.expect(.Some == P.run(bytes, null));
+    if (.None == P.run(bytes, null)) return error.TestExpectedSome;
 }
 
 pub fn expectSomeEqual(
@@ -45,7 +45,8 @@ pub fn expectSomeEqual(
     comptime P: type,
     bytes: []const u8,
 ) !void {
-    try t.expectEqual(@as(P.T, value), P.run(bytes, null).value().?);
+    const v = P.run(bytes, null).value() orelse return error.TestExpectedSome;
+    try t.expectEqual(@as(P.T, value), v);
 }
 
 pub fn expectSomeExactlyEqual(
@@ -53,7 +54,8 @@ pub fn expectSomeExactlyEqual(
     comptime P: type,
     bytes: []const u8,
 ) !void {
-    try t.expect(@as(P.T, value) == P.run(bytes, null).value().?);
+    const v = P.run(bytes, null).value() orelse return error.TestExpectedSome;
+    try t.expect(@as(P.T, value) == v);
 }
 
 pub fn expectSomeEqualSlice(
@@ -62,7 +64,8 @@ pub fn expectSomeEqualSlice(
     comptime P: type,
     bytes: []const u8,
 ) !void {
-    try t.expectEqualSlices(T, value, P.run(bytes, null).value().?);
+    const v = P.run(bytes, null).value() orelse return error.TestExpectedSome;
+    try t.expectEqualSlices(T, value, v);
 }
 
 pub fn expectSomeEqualSliceOpt(
@@ -71,7 +74,8 @@ pub fn expectSomeEqualSliceOpt(
     comptime P: type,
     bytes: []const u8,
 ) !void {
-    try t.expectEqualSlices(T, value, (P.run(bytes, null).value().?).?);
+    const v = P.run(bytes, null).value() orelse return error.TestExpectedSome;
+    try t.expectEqualSlices(T, value, v.?);
 }
 
 pub fn expectSomeTail(
@@ -79,5 +83,6 @@ pub fn expectSomeTail(
     comptime P: type,
     bytes: []const u8,
 ) !void {
-    try t.expectEqualSlices(u8, value, (P.run(bytes, null).tail().?).peek(null));
+    const tail = P.run(bytes, null).tail() orelse return error.TestExpectedSome;
+    try t.expectEqualSlices(u8, value, tail.peek(null));
 }
