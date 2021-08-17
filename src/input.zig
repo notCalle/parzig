@@ -37,6 +37,9 @@ pub const Position = struct {
         options: std.fmt.FormatOptions,
         writer: anytype,
     ) !void {
+        _ = fmt;
+        _ = options;
+        _ = writer;
         std.fmt.format("{}:{}:{}", .{
             self.label orelse "(null)",
             self.line,

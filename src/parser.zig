@@ -256,6 +256,7 @@ pub fn Pure(comptime v: anytype) type {
 pub fn Fail(comptime T: type, comptime why: ?Reason) type {
     return Parser(struct {
         pub fn parse(input: Input) Result(T) {
+            _ = input;
             return Result(T).fail(why);
         }
     });
