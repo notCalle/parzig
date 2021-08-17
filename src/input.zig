@@ -143,4 +143,6 @@ test "take nothing" {
 test "take everything" {
     const input0 = Input.init("hello, world\n", null);
     const input1 = input0.take(std.math.maxInt(usize));
+
+    try t.expectEqualSlices(u8, "", input1.peek(null));
 }
