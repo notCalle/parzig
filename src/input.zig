@@ -100,7 +100,7 @@ pub fn peek(self: Input, length: ?usize) []const u8 {
 test "peek at the tail" {
     const input = Input.init("hello", null);
 
-    t.expectEqualSlices(u8, "hello", input.peek(null));
+    try t.expectEqualSlices(u8, "hello", input.peek(null));
 }
 
 ///
@@ -137,7 +137,7 @@ test "take nothing" {
     const input0 = Input.init("hello, world\n", null);
     const input1 = input0.take(0);
 
-    t.expectEqualSlices(u8, input0.peek(null), input1.peek(null));
+    try t.expectEqualSlices(u8, input0.peek(null), input1.peek(null));
 }
 
 test "take everything" {
