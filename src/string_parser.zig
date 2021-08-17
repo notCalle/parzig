@@ -110,8 +110,8 @@ pub fn String(comptime str: Str) type {
 }
 
 test "parse string" {
-    t.expectSome(String("👻🥳"), "👻🥳");
-    t.expectNone(String("👻🥳"), "👻👻");
+    try t.expectSome(String("👻🥳"), "👻🥳");
+    try t.expectNone(String("👻🥳"), "👻👻");
 }
 
 pub fn Char(comptime char: u21) type {
@@ -123,8 +123,8 @@ pub fn Char(comptime char: u21) type {
 }
 
 test "parse code point" {
-    t.expectSomeEqualSlice(u8, "👻", Char('👻'), "👻");
-    t.expectNone(Char('👻'), "");
+    try t.expectSomeEqualSlice(u8, "👻", Char('👻'), "👻");
+    try t.expectNone(Char('👻'), "");
 }
 
 pub fn CharRange(comptime low: u21, high: u21) type {
@@ -150,7 +150,7 @@ test "parse range of matching code points" {
 
     while (c <= 'z') : (c += 1) {
         const s: [1]u8 = .{c};
-        t.expectSomeEqualSlice(u8, s[0..], CharRange('a', 'z'), s[0..]);
+        try t.expectSomeEqualSlice(u8, s[0..], CharRange('a', 'z'), s[0..]);
     }
 }
 
@@ -159,7 +159,7 @@ test "parse range of non-matching code points" {
 
     while (c <= 'z') : (c += 1) {
         const s: [1]u8 = .{c};
-        t.expectNone(CharRange('A', 'Z'), s[0..]);
+        try t.expectNone(CharRange('A', 'Z'), s[0..]);
     }
 }
 
@@ -168,31 +168,31 @@ test "parse range of non-matching code points" {
 test "parse a string of many" {
     const ghost_ghost = ghost ** 2;
 
-    t.expectSomeEqualSlice(u8, ghost_ghost, Char('👻').Many, ghost_ghost);
-    t.expectSomeEqualSlice(u8, ghost, Char('👻').Many, ghost_party);
-    t.expectSomeEqualSlice(u8, "", Char('👻').Many, party_ghost);
+    try t.expectSomeEqualSlice(u8, ghost_ghost, Char('👻').Many, ghost_ghost);
+    try t.expectSomeEqualSlice(u8, ghost, Char('👻').Many, ghost_party);
+    try t.expectSomeEqualSlice(u8, "", Char('👻').Many, party_ghost);
 }
 
 test "parse a string of at least one" {
     const ghost_ghost = ghost ** 2;
 
-    t.expectSomeEqualSlice(u8, ghost_ghost, Char('👻').Many1, ghost_ghost);
-    t.expectSomeEqualSlice(u8, ghost, Char('👻').Many1, ghost_party);
-    t.expectNone(Char('👻').Many1, party_ghost);
+    try t.expectSomeEqualSlice(u8, ghost_ghost, Char('👻').Many1, ghost_ghost);
+    try t.expectSomeEqualSlice(u8, ghost, Char('👻').Many1, ghost_party);
+    try t.expectNone(Char('👻').Many1, party_ghost);
 }
 
 test "parse a sequence of strings" {
-    t.expectSomeEqualSlice(u8, ghost_party, Char('👻').Seq(Char('🥳')), ghost_party);
-    t.expectNone(Char('👻').Seq(Char('🥳')), party_ghost);
+    try t.expectSomeEqualSlice(u8, ghost_party, Char('👻').Seq(Char('🥳')), ghost_party);
+    try t.expectNone(Char('👻').Seq(Char('🥳')), party_ghost);
 }
 
 test "parse intergers" {
     const Number = Char('-').Opt.Seq(CharRange('0', '9').Many1);
     const Int = Number.Map(i32, testStrToInt);
 
-    t.expectSomeExactlyEqual(-42, Int, "-42");
-    t.expectSomeExactlyEqual(17, Int, "17");
-    t.expectNone(Int, "x");
+    try t.expectSomeExactlyEqual(-42, Int, "-42");
+    try t.expectSomeExactlyEqual(17, Int, "17");
+    try t.expectNone(Int, "x");
 }
 fn testStrToInt(str: []const u8) i32 {
     return std.fmt.parseInt(i32, str, 10) catch unreachable;

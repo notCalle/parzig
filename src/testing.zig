@@ -29,31 +29,31 @@ usingnamespace @import("result.zig");
 pub fn expectNone(
     comptime P: type,
     bytes: []const u8,
-) void {
-    t.expect(.None == P.run(bytes, null));
+) !void {
+    try t.expect(.None == P.run(bytes, null));
 }
 
 pub fn expectSome(
     comptime P: type,
     bytes: []const u8,
-) void {
-    t.expect(.Some == P.run(bytes, null));
+) !void {
+    try t.expect(.Some == P.run(bytes, null));
 }
 
 pub fn expectSomeEqual(
     value: anytype,
     comptime P: type,
     bytes: []const u8,
-) void {
-    t.expectEqual(@as(P.T, value), P.run(bytes, null).value().?);
+) !void {
+    try t.expectEqual(@as(P.T, value), P.run(bytes, null).value().?);
 }
 
 pub fn expectSomeExactlyEqual(
     value: anytype,
     comptime P: type,
     bytes: []const u8,
-) void {
-    t.expect(@as(P.T, value) == P.run(bytes, null).value().?);
+) !void {
+    try t.expect(@as(P.T, value) == P.run(bytes, null).value().?);
 }
 
 pub fn expectSomeEqualSlice(
@@ -61,8 +61,8 @@ pub fn expectSomeEqualSlice(
     value: anytype,
     comptime P: type,
     bytes: []const u8,
-) void {
-    t.expectEqualSlices(T, value, P.run(bytes, null).value().?);
+) !void {
+    try t.expectEqualSlices(T, value, P.run(bytes, null).value().?);
 }
 
 pub fn expectSomeEqualSliceOpt(
@@ -70,14 +70,14 @@ pub fn expectSomeEqualSliceOpt(
     value: anytype,
     comptime P: type,
     bytes: []const u8,
-) void {
-    t.expectEqualSlices(T, value, (P.run(bytes, null).value().?).?);
+) !void {
+    try t.expectEqualSlices(T, value, (P.run(bytes, null).value().?).?);
 }
 
 pub fn expectSomeTail(
     value: anytype,
     comptime P: type,
     bytes: []const u8,
-) void {
-    t.expectEqualSlices(u8, value, (P.run(bytes, null).tail().?).peek(null));
+) !void {
+    try t.expectEqualSlices(u8, value, (P.run(bytes, null).tail().?).peek(null));
 }

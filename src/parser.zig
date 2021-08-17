@@ -256,13 +256,14 @@ pub fn Pure(comptime v: anytype) type {
 pub fn Fail(comptime T: type, comptime why: ?Reason) type {
     return Parser(struct {
         pub fn parse(input: Input) Result(T) {
+            _ = input;
             return Result(T).fail(why);
         }
     });
 }
 
 test "parse failure" {
-    t.expectNone(Fail(void, null), "");
+    try t.expectNone(Fail(void, null), "");
 }
 
 ///
@@ -271,8 +272,8 @@ test "parse failure" {
 pub const Nothing = Pure({});
 
 test "parse nothing" {
-    t.expectSomeExactlyEqual({}, Nothing, ghost);
-    t.expectSomeTail(ghost, Nothing, ghost);
+    try t.expectSomeExactlyEqual({}, Nothing, ghost);
+    try t.expectSomeTail(ghost, Nothing, ghost);
 }
 
 ///
@@ -287,8 +288,8 @@ pub const End = Parser(struct {
 });
 
 test "parse end of input" {
-    t.expectSomeEqual({}, End, "");
-    t.expectNone(End, "👻");
+    try t.expectSomeEqual({}, End, "");
+    try t.expectNone(End, "👻");
 }
 
 ///
@@ -317,9 +318,9 @@ pub fn Not(comptime P: type) type {
 }
 
 test "non matching look-ahead" {
-    t.expectNone(Not(Char('👻')), ghost_party);
+    try t.expectNone(Not(Char('👻')), ghost_party);
 
-    t.expectSomeEqual({}, Not(Char('🥳')), ghost_party);
+    try t.expectSomeEqual({}, Not(Char('🥳')), ghost_party);
 }
 
 ///
@@ -346,9 +347,9 @@ pub fn Try(comptime P: type) type {
 }
 
 test "matching look-ahead" {
-    t.expectNone(Try(Char('🥳')), ghost_party);
+    try t.expectNone(Try(Char('🥳')), ghost_party);
 
-    t.expectSomeEqual({}, Try(Char('👻')), ghost_party);
+    try t.expectSomeEqual({}, Try(Char('👻')), ghost_party);
 }
 
 ///
@@ -377,8 +378,8 @@ pub fn Optional(comptime P: anytype) type {
 }
 
 test "optional" {
-    t.expectSomeEqualSliceOpt(u8, ghost, Optional(Char('👻')), ghost_party);
-    t.expectSomeEqual(null, Optional(Char('👻')), party_ghost);
+    try t.expectSomeEqualSliceOpt(u8, ghost, Optional(Char('👻')), ghost_party);
+    try t.expectSomeEqual(null, Optional(Char('👻')), party_ghost);
 }
 
 //------------------------------------------------------------------------------
@@ -388,18 +389,18 @@ test "optional" {
 //------------------------------------------------------------------------------
 
 test "alternatives" {
-    t.expectSomeEqualSlice(u8, ghost, Char('🥳').Alt(Char('👻')), ghost_party);
-    t.expectSomeEqualSlice(u8, party, Char('🥳').Alt(Char('👻')), party_ghost);
+    try t.expectSomeEqualSlice(u8, ghost, Char('🥳').Alt(Char('👻')), ghost_party);
+    try t.expectSomeEqualSlice(u8, party, Char('🥳').Alt(Char('👻')), party_ghost);
 }
 
 test "sequence left" {
-    t.expectSomeEqualSlice(u8, party, Char('🥳').SeqL(Char('👻')), party_ghost);
-    t.expectNone(Char('🥳').SeqL(Char('👻')), ghost_party);
+    try t.expectSomeEqualSlice(u8, party, Char('🥳').SeqL(Char('👻')), party_ghost);
+    try t.expectNone(Char('🥳').SeqL(Char('👻')), ghost_party);
 }
 
 test "sequence right" {
-    t.expectSomeEqualSlice(u8, ghost, Char('🥳').SeqR(Char('👻')), party_ghost);
-    t.expectNone(Char('🥳').SeqR(Char('👻')), ghost_party);
+    try t.expectSomeEqualSlice(u8, ghost, Char('🥳').SeqR(Char('👻')), party_ghost);
+    try t.expectNone(Char('🥳').SeqR(Char('👻')), ghost_party);
 }
 
 test "compile" {
