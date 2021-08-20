@@ -29,6 +29,7 @@ usingnamespace @import("ghost_party.zig");
 usingnamespace @import("meta.zig");
 usingnamespace @import("result.zig");
 usingnamespace @import("string_parser.zig");
+usingnamespace @import("curry.zig");
 
 ///
 /// Base type constructor for ParZig parsers
@@ -45,13 +46,10 @@ usingnamespace @import("string_parser.zig");
 ///
 pub fn Parser(comptime P: type) type {
     return struct {
-        // Keep in sync with `meta.isParser`
-        const Self = @This();
-
         /// Value type of parse results
         pub const T = ParseResult(P).T;
 
-        pub usingnamespace (P);
+        pub usingnamespace P;
 
         ///
         /// Functor `map` combinator
@@ -65,13 +63,52 @@ pub fn Parser(comptime P: type) type {
         /// Returns:
         ///     `Parser{ .T = U }`
         ///
-        pub fn Map(comptime U: type, comptime map: anytype) type {
+        pub fn Map(comptime f: anytype) type {
+            const U = ReturnType(@TypeOf(f));
+
             return Parser(struct {
                 pub fn parse(input: Input) Result(U) {
-                    switch (Self.parse(input)) {
-                        .Some => |r| return Result(U).some(map(r.value), r.tail),
+                    switch (P.parse(input)) {
+                        .Some => |r| return Result(U).some(f(r.value), r.tail),
                         .None => |r| return Result(U).fail(r),
                     }
+                }
+            });
+        }
+
+        ///
+        /// Applicative sequence combinator `<*>`
+        ///
+        /// Constructs a parser that runs two parsers, applying the curried
+        /// function in the left result to the right result. If either parser
+        /// fails, the lestmost reason is returned.
+        ///
+        /// ```
+        /// fn add2(a: i32, b: i32) i32 { return a+b; }
+        /// const Int = CharRange('0', '9').Many1.Map(strToInt);
+        /// const Add = Lift(add2).Seq(Int).SeqL(Char('+')).Seq(Int);
+        /// ```
+        ///
+        /// Arguments:
+        ///     `R`: right side parser
+        ///
+        /// Returns:
+        ///     `Parser{ .T = T.Ret }`
+        ///
+        pub fn Seq(comptime R: type) type {
+            const U = T.Ret;
+
+            return Parser(struct {
+                pub fn parse(input: Input) Result(U) {
+                    return switch (P.parse(input)) {
+                        .None => |r| Result(U).fail(r),
+                        .Some => |l| //
+                        switch (R.parse(l.tail)) {
+                            .None => |r| Result(U).fail(r),
+                            .Some => |r| //
+                            Result(U).some(l.value.apply(r.value), r.tail),
+                        },
+                    };
                 }
             });
         }
@@ -94,7 +131,7 @@ pub fn Parser(comptime P: type) type {
         pub fn Alt(comptime R: type) type {
             return Parser(struct {
                 pub fn parse(input: Input) Result(T) {
-                    const r = Self.parse(input);
+                    const r = P.parse(input);
                     if (.Some == r) return r;
                     return R.parse(input);
                 }
@@ -117,7 +154,7 @@ pub fn Parser(comptime P: type) type {
         pub fn SeqL(comptime R: type) type {
             return Parser(struct {
                 pub fn parse(input: Input) Result(T) {
-                    switch (Self.parse(input)) {
+                    switch (P.parse(input)) {
                         .None => |r| return Result(T).fail(r),
                         .Some => |left| //
                         switch (R.parse(left.tail)) {
@@ -148,7 +185,7 @@ pub fn Parser(comptime P: type) type {
 
             return Parser(struct {
                 pub fn parse(input: Input) Result(U) {
-                    switch (Self.parse(input)) {
+                    switch (P.parse(input)) {
                         .None => |r| return Result(U).fail(r),
                         .Some => |left| //
                         switch (R.parse(left.tail)) {
@@ -174,8 +211,8 @@ pub fn Parser(comptime P: type) type {
         /// Returns:
         ///     `Parser{ .T = U }`
         ///
-        pub fn Bind(comptime U: type, comptime f: anytype) type {
-            return Self.Map(Result(U), f).Join;
+        pub fn Bind(comptime f: anytype) type {
+            return P.Map(f).Join;
         }
 
         ///
@@ -193,8 +230,10 @@ pub fn Parser(comptime P: type) type {
         ///     `Parser{ .T = U }`
         ///
         pub const Join = Parser(struct {
+            const U = ResultType(T);
+
             pub fn parse(input: Input) Result(U) {
-                switch (Self.parse(input)) {
+                switch (P.parse(input)) {
                     .None => |r| return Result(U).fail(r),
                     .Some => |r| return r,
                 }
@@ -215,7 +254,7 @@ pub fn Parser(comptime P: type) type {
             bytes: []const u8,
             label: ?[]const u8,
         ) Result(T) {
-            return Self.parse(Input.init(bytes, label));
+            return P.parse(Input.init(bytes, label));
         }
     };
 }
@@ -237,6 +276,27 @@ pub fn Pure(comptime v: anytype) type {
     return Parser(struct {
         pub fn parse(input: Input) Result(T) {
             return Result(T).some(v, input);
+        }
+    });
+}
+
+///
+/// Applicative constructor
+///
+/// Constructs a parser that returns an instance of a curried function.
+///
+/// Arguments:
+///     `f`: function to be lifted into a parser
+///
+/// Returns:
+///     `Parser{ .T = Curry(@TypeOf(f), 0) }`
+///
+pub fn Lift(comptime f: anytype) type {
+    const T = Curry(@TypeOf(f), 0);
+
+    return Parser(struct {
+        pub fn parse(input: Input) Result(T) {
+            return Result(T).some(curry(f), input);
         }
     });
 }
@@ -387,6 +447,40 @@ test "optional" {
 //  MARK: Tests for Parser combinators
 //
 //------------------------------------------------------------------------------
+
+fn testStrToInt(str: []const u8) i32 {
+    return std.fmt.parseInt(i32, str, 10) catch unreachable;
+}
+const TestInt = CharRange('0', '9').Many1.Map(testStrToInt);
+
+fn testId(a: i32) i32 {
+    return a;
+}
+
+test "functor map" {
+    try t.expectSomeEqual(1, TestInt, "1");
+    try t.expectSomeEqual(1, TestInt.Map(testId), "1");
+}
+
+fn testIntOp(a: i32, o: []const u8, b: i32) i32 {
+    return switch (o[0]) {
+        '+' => a + b,
+        '-' => a - b,
+        '*' => a * b,
+        '/' => @divTrunc(a, b),
+        else => unreachable,
+    };
+}
+const TestOp = Char('+').Alt(Char('-')).Alt(Char('*')).Alt(Char('/'));
+const TestIntOp = Lift(testIntOp).Seq(TestInt).Seq(TestOp).Seq(TestInt);
+
+test "applicative sequence" {
+    try t.expectSomeEqual(1, Lift(testId).Seq(TestInt), "1");
+    try t.expectSomeEqual(3, TestIntOp, "1+2");
+    try t.expectSomeEqual(-1, TestIntOp, "1-2");
+    try t.expectSomeEqual(2, TestIntOp, "1*2");
+    try t.expectSomeEqual(0, TestIntOp, "1/2");
+}
 
 test "alternatives" {
     try t.expectSomeEqualSlice(u8, ghost, Char('🥳').Alt(Char('👻')), ghost_party);
